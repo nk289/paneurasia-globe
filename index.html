@@ -6,16 +6,16 @@
   <title>Paneurasia Globe</title>
 
   <style>
-    html, body {
-      height: 100%;
-      margin: 0;
-      overflow: hidden;
-      background: #f4efe6; /* creamy white */
-    }
-    #globe {
-      width: 85vw;   /* 15% smaller */
-      height: 85vh;
-      margin: auto;
+    html, body { height:100%; margin:0; overflow:hidden; background:#f4efe6; }
+    #wrap { width:85vw; height:85vh; margin:auto; position:relative; }
+    #globe { width:100%; height:100%; }
+    #status{
+      position:absolute; left:14px; bottom:12px;
+      font: 12px/1.3 Arial, sans-serif;
+      color:#1a2430; background: rgba(255,255,255,0.75);
+      padding:8px 10px; border-radius:10px;
+      box-shadow: 0 6px 18px rgba(0,0,0,0.10);
+      max-width: 70%;
     }
   </style>
 
@@ -25,103 +25,120 @@
 </head>
 
 <body>
-  <div id="globe"></div>
+  <div id="wrap">
+    <div id="globe"></div>
+    <div id="status">Loading…</div>
+  </div>
 
   <script>
-    window.addEventListener("load", async () => {
+    (async function () {
+      const status = (msg) => document.getElementById("status").textContent = msg;
 
-      // Theme
-      const BG = "#f4efe6";
-      const OCEAN = "#3f8fbf";  // clearly blue ocean
-      const INK = "#1a2430";    // dark ink for coastlines/labels
-      const GOLD = "#d6b24c";
+      try {
+        // Theme
+        const BG = "#f4efe6";
+        const OCEAN = "#3f8fbf";
+        const INK = "#1a2430";
+        const GOLD = "#d6b24c";
 
-      // Cities (accurate coords)
-      const cities = [
-        { name: "Toronto, Canada",      lat: 43.6532, lng: -79.3832 },
-        { name: "Panama City, Panama",  lat:  8.9824, lng: -79.5199 },
-        { name: "Los Angeles, USA",     lat: 34.0522, lng:-118.2437 },
-        { name: "Mexico City, Mexico",  lat: 19.4326, lng: -99.1332 },
-        { name: "Baku, Azerbaijan",     lat: 40.4093, lng:  49.8671 },
-        { name: "Hong Kong",            lat: 22.3193, lng: 114.1694 },
-        { name: "Singapore",            lat:  1.3521, lng: 103.8198 }
-      ];
+        // Cities (always on)
+        const cities = [
+          { name: "Toronto, Canada",      lat: 43.6532, lng: -79.3832 },
+          { name: "Panama City, Panama",  lat:  8.9824, lng: -79.5199 },
+          { name: "Los Angeles, USA",     lat: 34.0522, lng:-118.2437 },
+          { name: "Mexico City, Mexico",  lat: 19.4326, lng: -99.1332 },
+          { name: "Baku, Azerbaijan",     lat: 40.4093, lng:  49.8671 },
+          { name: "Hong Kong",            lat: 22.3193, lng: 114.1694 },
+          { name: "Singapore",            lat:  1.3521, lng: 103.8198 }
+        ];
 
-      // Land outlines (continents/coasts)
-      const world = await fetch("https://unpkg.com/world-atlas@2/land-110m.json").then(r => r.json());
-      const landFeat = topojson.feature(world, world.objects.land);
-      const land = (landFeat.type === "FeatureCollection") ? landFeat.features : [landFeat];
+        const wrap = document.getElementById("wrap");
+        const w = wrap.clientWidth;
+        const h = wrap.clientHeight;
 
-      const el = document.getElementById("globe");
+        if (typeof Globe !== "function") throw new Error("Globe.gl did not load (Globe is missing).");
+        if (!window.THREE) throw new Error("Three.js did not load (THREE is missing).");
 
-      const globe = Globe()(el)
-        .width(window.innerWidth * 0.85)
-        .height(window.innerHeight * 0.85)
-        .backgroundColor(BG)
-        .globeImageUrl(null)
-        .bumpImageUrl(null)
+        // Create globe
+        const globe = Globe()(document.getElementById("globe"))
+          .width(w)
+          .height(h)
+          .backgroundColor(BG)
+          .globeImageUrl(null)
+          .bumpImageUrl(null)
+          .atmosphereColor("#ffffff")
+          .atmosphereAltitude(0.16);
 
-        // Premium "luxury" glow (stable, not messy)
-        .atmosphereColor("#ffffff")
-        .atmosphereAltitude(0.18);
+        // Ocean
+        globe.globeMaterial(new THREE.MeshPhongMaterial({
+          color: new THREE.Color(OCEAN),
+          shininess: 10,
+          specular: new THREE.Color("#ffffff")
+        }));
 
-      // Blue ocean sphere (no black, no grid)
-      globe.globeMaterial(new THREE.MeshPhongMaterial({
-        color: new THREE.Color(OCEAN),
-        shininess: 10,
-        specular: new THREE.Color("#ffffff")
-      }));
+        // Add cities (points + labels) BEFORE any fetch (so even if fetch fails, cities still show)
+        globe
+          .pointsData(cities)
+          .pointLat(d => d.lat)
+          .pointLng(d => d.lng)
+          .pointColor(() => GOLD)
+          .pointRadius(0.62)
+          .pointAltitude(0.03);
 
-      // Thick continent outlines
-      globe
-        .polygonsData(land)
-        .polygonCapColor(() => "rgba(0,0,0,0)")   // no land fill
-        .polygonSideColor(() => "rgba(0,0,0,0)")
-        .polygonStrokeColor(() => INK)
-        .polygonStrokeWidth(2.2)                  // thicker
-        .polygonAltitude(0.010);
+        globe
+          .labelsData(cities)
+          .labelLat(d => d.lat)
+          .labelLng(d => d.lng)
+          .labelText(d => d.name)
+          .labelSize(0.95)
+          .labelDotRadius(0.22)
+          .labelColor(() => INK)
+          .labelResolution(2);
 
-      // Gold dots (restored)
-      globe
-        .pointsData(cities)
-        .pointLat(d => d.lat)
-        .pointLng(d => d.lng)
-        .pointColor(() => GOLD)
-        .pointRadius(0.62)
-        .pointAltitude(0.03);
+        // Rotation (force)
+        const c = globe.controls();
+        c.autoRotate = true;
+        c.autoRotateSpeed = 0.28;
+        c.enableZoom = false;
+        c.enablePan = false;
 
-      // City names (restored)
-      globe
-        .labelsData(cities)
-        .labelLat(d => d.lat)
-        .labelLng(d => d.lng)
-        .labelText(d => d.name)
-        .labelSize(0.95)
-        .labelDotRadius(0.22)
-        .labelColor(() => INK)
-        .labelResolution(2);
+        // Lighting
+        globe.scene().add(new THREE.AmbientLight(0xffffff, 1.15));
+        const key = new THREE.DirectionalLight(0xffffff, 0.9);
+        key.position.set(-60, 45, 55);
+        globe.scene().add(key);
 
-      // Atlantic start
-      globe.pointOfView({ lat: 20, lng: -30, altitude: 1.85 }, 0);
+        // View
+        globe.pointOfView({ lat: 20, lng: -30, altitude: 1.85 }, 0);
 
-      // Rotation (restored)
-      globe.controls().autoRotate = true;
-      globe.controls().autoRotateSpeed = 0.28;
-      globe.controls().enableZoom = false;
-      globe.controls().enablePan = false;
+        // Land outlines (optional; if fetch fails, we still keep cities + rotation)
+        status("Loading coastlines…");
+        const world = await fetch("https://unpkg.com/world-atlas@2/land-110m.json", { cache: "no-store" }).then(r => r.json());
+        if (!window.topojson) throw new Error("topojson did not load (window.topojson missing).");
 
-      // Lighting (keeps ocean blue, avoids “black crush”)
-      globe.scene().add(new THREE.AmbientLight(0xffffff, 1.15));
-      const key = new THREE.DirectionalLight(0xffffff, 0.9);
-      key.position.set(-60, 45, 55);
-      globe.scene().add(key);
+        const landFeat = topojson.feature(world, world.objects.land);
+        const land = (landFeat.type === "FeatureCollection") ? landFeat.features : [landFeat];
 
-      // Resize
-      window.addEventListener("resize", () => {
-        globe.width(window.innerWidth * 0.85);
-        globe.height(window.innerHeight * 0.85);
-      });
-    });
+        globe
+          .polygonsData(land)
+          .polygonCapColor(() => "rgba(0,0,0,0)")
+          .polygonSideColor(() => "rgba(0,0,0,0)")
+          .polygonStrokeColor(() => INK)
+          .polygonStrokeWidth(2.2)
+          .polygonAltitude(0.01);
+
+        // Resize
+        window.addEventListener("resize", () => {
+          globe.width(wrap.clientWidth);
+          globe.height(wrap.clientHeight);
+        });
+
+        status("Live: rotating globe + cities loaded.");
+      } catch (e) {
+        status("Error: " + (e && e.message ? e.message : String(e)));
+        console.error(e);
+      }
+    })();
   </script>
 </body>
 </html>
