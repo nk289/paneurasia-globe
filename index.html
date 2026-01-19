@@ -10,10 +10,9 @@
       height: 100%;
       margin: 0;
       overflow: hidden;
-      background: #f4efe6; /* creamy background */
+      background: #f4efe6; /* creamy white */
     }
 
-    /* Globe scaled down 15% */
     #globe {
       width: 85vw;
       height: 85vh;
@@ -32,11 +31,14 @@
   <script>
     window.addEventListener("load", async () => {
 
+      /* ===== THEME ===== */
       const BG = "#f4efe6";
-      const OCEAN = "#4fa3d1";   // water blue
-      const INK = "#1a2430";
+      const OCEAN = "#4fa3d1";        // visible blue
+      const COAST = "#1a2430";        // ink
+      const GLOW = "#9fb7cc";         // soft glow blue
       const GOLD = "#d6b24c";
 
+      /* ===== CITIES ===== */
       const cities = [
         { name: "Toronto, Canada",      lat: 43.6532, lng: -79.3832 },
         { name: "Panama City, Panama",  lat:  8.9824, lng: -79.5199 },
@@ -47,35 +49,49 @@
         { name: "Singapore",            lat:  1.3521, lng: 103.8198 }
       ];
 
-      // Load land data
-      const world = await fetch("https://unpkg.com/world-atlas@2/land-110m.json").then(r => r.json());
+      /* ===== LAND DATA ===== */
+      const world = await fetch(
+        "https://unpkg.com/world-atlas@2/land-110m.json"
+      ).then(r => r.json());
+
       const landFeat = topojson.feature(world, world.objects.land);
-      const landPolys = landFeat.type === "FeatureCollection"
+      const land = landFeat.type === "FeatureCollection"
         ? landFeat.features
         : [landFeat];
 
+      /* ===== GLOBE ===== */
       const globe = Globe()(document.getElementById("globe"))
         .backgroundColor(BG)
         .globeImageUrl(null)
         .bumpImageUrl(null);
 
-      /* BLUE OCEAN SPHERE */
+      /* ===== OCEAN SPHERE (FORCED BLUE) ===== */
       globe.globeMaterial(new THREE.MeshPhongMaterial({
-        color: OCEAN,
-        transparent: false,
-        shininess: 5
+        color: new THREE.Color(OCEAN),
+        emissive: new THREE.Color(OCEAN),
+        emissiveIntensity: 0.15,
+        shininess: 8
       }));
 
-      /* CONTINENT OUTLINES — thicker */
+      /* ===== COASTLINE GLOW (LAYER 1) ===== */
       globe
-        .polygonsData(landPolys)
+        .polygonsData(land)
         .polygonCapColor(() => "rgba(0,0,0,0)")
         .polygonSideColor(() => "rgba(0,0,0,0)")
-        .polygonStrokeColor(() => INK)
-        .polygonStrokeWidth(1.4)   // THICKER lines
-        .polygonAltitude(0.01);
+        .polygonStrokeColor(() => GLOW)
+        .polygonStrokeWidth(3.2)
+        .polygonAltitude(0.008);
 
-      /* GOLD CITY DOTS */
+      /* ===== COASTLINE DEFINITION (LAYER 2) ===== */
+      globe
+        .polygonsData(land)
+        .polygonCapColor(() => "rgba(0,0,0,0)")
+        .polygonSideColor(() => "rgba(0,0,0,0)")
+        .polygonStrokeColor(() => COAST)
+        .polygonStrokeWidth(1.4)
+        .polygonAltitude(0.012);
+
+      /* ===== CITY DOTS ===== */
       globe
         .pointsData(cities)
         .pointLat(d => d.lat)
@@ -84,7 +100,7 @@
         .pointRadius(0.6)
         .pointAltitude(0);
 
-      /* LABELS */
+      /* ===== LABELS ===== */
       globe
         .labelsData(cities)
         .labelLat(d => d.lat)
@@ -92,29 +108,29 @@
         .labelText(d => d.name)
         .labelSize(0.9)
         .labelDotRadius(0.25)
-        .labelColor(() => INK);
+        .labelColor(() => COAST);
 
-      /* CAMERA — slightly pulled back to match smaller globe */
+      /* ===== CAMERA ===== */
       globe.pointOfView({ lat: 20, lng: -30, altitude: 1.85 }, 0);
 
-      /* ROTATION */
+      /* ===== ROTATION ===== */
       globe.controls().autoRotate = true;
-      globe.controls().autoRotateSpeed = 0.28;
+      globe.controls().autoRotateSpeed = 0.25;
       globe.controls().enableZoom = false;
       globe.controls().enablePan = false;
 
-      /* LIGHTING */
-      globe.scene().add(new THREE.AmbientLight(0xffffff, 1.3));
+      /* ===== LIGHTING ===== */
+      globe.scene().add(new THREE.AmbientLight(0xffffff, 1.35));
 
-      const key = new THREE.DirectionalLight(0xffffff, 0.9);
+      const key = new THREE.DirectionalLight(0xffffff, 0.85);
       key.position.set(-60, 40, 50);
       globe.scene().add(key);
 
-      const rim = new THREE.DirectionalLight(0xffffff, 0.4);
-      rim.position.set(80, -20, 60);
+      const rim = new THREE.DirectionalLight(0xffffff, 0.45);
+      rim.position.set(90, -30, 60);
       globe.scene().add(rim);
 
-      /* Resize */
+      /* ===== RESIZE ===== */
       window.addEventListener("resize", () => {
         globe.width(window.innerWidth * 0.85);
         globe.height(window.innerHeight * 0.85);
