@@ -32,13 +32,11 @@
 
       // Theme
       const BG = "#f4efe6";
-      const OCEAN = "#4fa3d1";             // water blue
-      const COAST = "rgba(26,36,48,0.70)"; // crisp coast ink
-      const GLOW  = "rgba(159,183,204,0.55)"; // soft glow tint
-      const GOLD  = "#d6b24c";
-      const INK   = "#1a2430";
+      const OCEAN = "#3f8fbf";  // clearly blue ocean
+      const INK = "#1a2430";    // dark ink for coastlines/labels
+      const GOLD = "#d6b24c";
 
-      // Cities (verified coords)
+      // Cities (accurate coords)
       const cities = [
         { name: "Toronto, Canada",      lat: 43.6532, lng: -79.3832 },
         { name: "Panama City, Panama",  lat:  8.9824, lng: -79.5199 },
@@ -49,82 +47,74 @@
         { name: "Singapore",            lat:  1.3521, lng: 103.8198 }
       ];
 
-      // Land (coastlines)
+      // Land outlines (continents/coasts)
       const world = await fetch("https://unpkg.com/world-atlas@2/land-110m.json").then(r => r.json());
       const landFeat = topojson.feature(world, world.objects.land);
       const land = (landFeat.type === "FeatureCollection") ? landFeat.features : [landFeat];
 
-      // Create globe
-      const globe = Globe()(document.getElementById("globe"))
+      const el = document.getElementById("globe");
+
+      const globe = Globe()(el)
         .width(window.innerWidth * 0.85)
         .height(window.innerHeight * 0.85)
         .backgroundColor(BG)
         .globeImageUrl(null)
-        .bumpImageUrl(null);
+        .bumpImageUrl(null)
 
-      // Ocean sphere (blue) — keep it matte so it does NOT look neon/full-blue
+        // Premium "luxury" glow (stable, not messy)
+        .atmosphereColor("#ffffff")
+        .atmosphereAltitude(0.18);
+
+      // Blue ocean sphere (no black, no grid)
       globe.globeMaterial(new THREE.MeshPhongMaterial({
         color: new THREE.Color(OCEAN),
-        shininess: 6,
+        shininess: 10,
         specular: new THREE.Color("#ffffff")
       }));
 
-      // Coastlines with a “luxury glow” effect:
-      // We simulate glow by using a thicker, soft-colored stroke.
-      // Then we sharpen it by slightly increasing opacity and keeping width moderate (no second setter).
+      // Thick continent outlines
       globe
         .polygonsData(land)
-        .polygonCapColor(() => "rgba(0,0,0,0)")
+        .polygonCapColor(() => "rgba(0,0,0,0)")   // no land fill
         .polygonSideColor(() => "rgba(0,0,0,0)")
-        .polygonStrokeColor(() => GLOW)
-        .polygonStrokeWidth(2.8)
+        .polygonStrokeColor(() => INK)
+        .polygonStrokeWidth(2.2)                  // thicker
         .polygonAltitude(0.010);
 
-      // Add a crisp line using paths over the same land boundaries is complex;
-      // Instead we add a second visual crispness by drawing arcs as subtle highlights around key regions is overkill.
-      // Best clean solution: darken glow slightly by changing stroke color after initial draw is not possible.
-      // So we combine glow + crisp in one: slightly stronger coast stroke color.
-      globe.polygonStrokeColor(() => COAST);
-      globe.polygonStrokeWidth(1.7);
-
-      // Gold city dots (restored)
+      // Gold dots (restored)
       globe
         .pointsData(cities)
         .pointLat(d => d.lat)
         .pointLng(d => d.lng)
         .pointColor(() => GOLD)
-        .pointRadius(0.6)
-        .pointAltitude(0.02);
+        .pointRadius(0.62)
+        .pointAltitude(0.03);
 
-      // Labels (restored)
+      // City names (restored)
       globe
         .labelsData(cities)
         .labelLat(d => d.lat)
         .labelLng(d => d.lng)
         .labelText(d => d.name)
-        .labelSize(0.9)
+        .labelSize(0.95)
         .labelDotRadius(0.22)
         .labelColor(() => INK)
         .labelResolution(2);
 
-      // Start Atlantic
+      // Atlantic start
       globe.pointOfView({ lat: 20, lng: -30, altitude: 1.85 }, 0);
 
       // Rotation (restored)
       globe.controls().autoRotate = true;
-      globe.controls().autoRotateSpeed = 0.25;
+      globe.controls().autoRotateSpeed = 0.28;
       globe.controls().enableZoom = false;
       globe.controls().enablePan = false;
 
-      // Lighting tuned so ocean stays blue and land lines stay visible
-      globe.scene().add(new THREE.AmbientLight(0xffffff, 1.05));
-      const key = new THREE.DirectionalLight(0xffffff, 0.95);
-      key.position.set(-60, 40, 50);
+      // Lighting (keeps ocean blue, avoids “black crush”)
+      globe.scene().add(new THREE.AmbientLight(0xffffff, 1.15));
+      const key = new THREE.DirectionalLight(0xffffff, 0.9);
+      key.position.set(-60, 45, 55);
       globe.scene().add(key);
-
-      const rim = new THREE.DirectionalLight(0xffffff, 0.35);
-      rim.position.set(90, -30, 60);
-      globe.scene().add(rim);
 
       // Resize
       window.addEventListener("resize", () => {
