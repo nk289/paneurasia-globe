@@ -12,8 +12,6 @@
 
   <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
   <script src="https://unpkg.com/globe.gl@2.33.1/dist/globe.gl.min.js"></script>
-
-  <!-- IMPORTANT: must be the DIST build so window.topojson exists -->
   <script src="https://unpkg.com/topojson-client@3/dist/topojson-client.min.js"></script>
 </head>
 
@@ -23,13 +21,12 @@
   <script>
     window.addEventListener("load", async () => {
 
-      // Theme
-      const BG = "#f4efe6";                 // creamy background
+      // Cream theme + readable ink color
+      const BG = "#f4efe6";
+      const INK = "#1a2430";      // dark blue/ink (not black)
       const GOLD = "#d6b24c";
-      const OUTLINE = "rgba(25,35,45,0.55)"; // continent outline color
-      const GRID = "rgba(25,35,45,0.15)";    // globe wire grid color
 
-      // Your cities (these are real coordinates; edit names/coords as needed)
+      // Cities (real coordinates)
       const cities = [
         { name: "Toronto, Canada",      lat: 43.6532, lng: -79.3832 },
         { name: "Panama City, Panama",  lat:  8.9824, lng: -79.5199 },
@@ -40,58 +37,56 @@
         { name: "Singapore",            lat:  1.3521, lng: 103.8198 }
       ];
 
-      // Load land data (coastlines/continents)
-      // land-110m is simpler and shows clean continent shapes.
+      // Load LAND (continents/coastlines)
       const world = await fetch("https://unpkg.com/world-atlas@2/land-110m.json").then(r => r.json());
-      const land = topojson.feature(world, world.objects.land).features;
+      const landFeat = topojson.feature(world, world.objects.land);
+      const landPolys = (landFeat.type === "FeatureCollection") ? landFeat.features : [landFeat];
 
-      const el = document.getElementById("globe");
-
-      const globe = Globe()(el)
+      const globe = Globe()(document.getElementById("globe"))
         .width(window.innerWidth)
         .height(window.innerHeight)
         .backgroundColor(BG)
         .globeImageUrl(null)
         .bumpImageUrl(null);
 
-      // FORCE the globe sphere to not be black
-      globe.globeMaterial(new THREE.MeshPhongMaterial({
+      // Force globe sphere to be LIGHT (no black)
+      globe.globeMaterial(new THREE.MeshLambertMaterial({
         color: 0xffffff,
         transparent: true,
-        opacity: 0.10,
-        shininess: 10
+        opacity: 0.22
       }));
 
-      // Add subtle wireframe grid so it's “hollow” but visible on light background
+      // Add subtle wire grid (ink color, low opacity)
       const R = globe.getGlobeRadius();
-      const sphereGeom = new THREE.SphereGeometry(R, 64, 64);
-      const wireMat = new THREE.MeshBasicMaterial({
-        color: new THREE.Color(GRID),
-        wireframe: true,
-        transparent: true,
-        opacity: 1
-      });
-      globe.scene().add(new THREE.Mesh(sphereGeom, wireMat));
+      const wire = new THREE.Mesh(
+        new THREE.SphereGeometry(R, 64, 64),
+        new THREE.MeshBasicMaterial({
+          color: new THREE.Color(INK),
+          wireframe: true,
+          transparent: true,
+          opacity: 0.12
+        })
+      );
+      globe.scene().add(wire);
 
-      // Continents / coastlines outlines
+      // Draw continent/coast outlines
       globe
-        .polygonsData(land)
-        .polygonCapColor(() => "rgba(0,0,0,0)")   // no fill
+        .polygonsData(landPolys)
+        .polygonCapColor(() => "rgba(0,0,0,0)")     // no fill
         .polygonSideColor(() => "rgba(0,0,0,0)")
-        .polygonStrokeColor(() => OUTLINE)
-        .polygonAltitude(0.01);
+        .polygonStrokeColor(() => "rgba(26,36,48,0.65)")
+        .polygonAltitude(0.012);
 
-      // Gold dots (true dots, not bars)
+      // Gold dots (true dots)
       globe
         .pointsData(cities)
         .pointLat(d => d.lat)
         .pointLng(d => d.lng)
         .pointColor(() => GOLD)
         .pointRadius(0.55)
-        .pointAltitude(0.0)      // IMPORTANT: 0 so it’s a dot, not an extrusion
-        .pointsMerge(false);
+        .pointAltitude(0.0);
 
-      // Always-visible city labels so you can verify correctness
+      // Always-visible labels
       globe
         .labelsData(cities)
         .labelLat(d => d.lat)
@@ -99,10 +94,10 @@
         .labelText(d => d.name)
         .labelSize(0.9)
         .labelDotRadius(0.25)
-        .labelColor(() => "rgba(25,35,45,0.95)")
+        .labelColor(() => INK)
         .labelResolution(2);
 
-      // Atlantic-centered start
+      // Atlantic start
       globe.pointOfView({ lat: 20, lng: -30, altitude: 1.65 }, 0);
 
       // Rotation
@@ -111,10 +106,10 @@
       globe.controls().enableZoom = false;
       globe.controls().enablePan = false;
 
-      // Lighting tuned for light background
-      globe.scene().add(new THREE.AmbientLight(0xffffff, 1.2));
+      // Lighting for light background
+      globe.scene().add(new THREE.AmbientLight(0xffffff, 1.4));
       const key = new THREE.DirectionalLight(0xffffff, 0.9);
-      key.position.set(-60, 50, 40);
+      key.position.set(-60, 40, 50);
       globe.scene().add(key);
 
       // Resize
