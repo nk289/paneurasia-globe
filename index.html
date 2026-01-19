@@ -21,12 +21,11 @@
   <script>
     window.addEventListener("load", async () => {
 
-      // Cream theme + readable ink color
-      const BG = "#f4efe6";
-      const INK = "#1a2430";      // dark blue/ink (not black)
+      const BG = "#f4efe6";          // creamy background
+      const INK = "#1a2430";         // dark ink (not black)
+      const OUTLINE = "rgba(26,36,48,0.55)";
       const GOLD = "#d6b24c";
 
-      // Cities (real coordinates)
       const cities = [
         { name: "Toronto, Canada",      lat: 43.6532, lng: -79.3832 },
         { name: "Panama City, Panama",  lat:  8.9824, lng: -79.5199 },
@@ -37,7 +36,7 @@
         { name: "Singapore",            lat:  1.3521, lng: 103.8198 }
       ];
 
-      // Load LAND (continents/coastlines)
+      // Clean land outlines
       const world = await fetch("https://unpkg.com/world-atlas@2/land-110m.json").then(r => r.json());
       const landFeat = topojson.feature(world, world.objects.land);
       const landPolys = (landFeat.type === "FeatureCollection") ? landFeat.features : [landFeat];
@@ -49,51 +48,40 @@
         .globeImageUrl(null)
         .bumpImageUrl(null);
 
-      // Force globe sphere to be LIGHT (no black)
-      globe.globeMaterial(new THREE.MeshLambertMaterial({
+      // Make the sphere light and clean (no grid)
+      globe.globeMaterial(new THREE.MeshPhongMaterial({
         color: 0xffffff,
         transparent: true,
-        opacity: 0.22
+        opacity: 0.18,
+        shininess: 18
       }));
 
-      // Add subtle wire grid (ink color, low opacity)
-      const R = globe.getGlobeRadius();
-      const wire = new THREE.Mesh(
-        new THREE.SphereGeometry(R, 64, 64),
-        new THREE.MeshBasicMaterial({
-          color: new THREE.Color(INK),
-          wireframe: true,
-          transparent: true,
-          opacity: 0.12
-        })
-      );
-      globe.scene().add(wire);
-
-      // Draw continent/coast outlines
+      // Continent/coast outlines only
       globe
         .polygonsData(landPolys)
-        .polygonCapColor(() => "rgba(0,0,0,0)")     // no fill
+        .polygonCapColor(() => "rgba(0,0,0,0)")   // no fill
         .polygonSideColor(() => "rgba(0,0,0,0)")
-        .polygonStrokeColor(() => "rgba(26,36,48,0.65)")
+        .polygonStrokeColor(() => OUTLINE)
         .polygonAltitude(0.012);
 
-      // Gold dots (true dots)
+      // Gold dots (clean circles)
       globe
         .pointsData(cities)
         .pointLat(d => d.lat)
         .pointLng(d => d.lng)
         .pointColor(() => GOLD)
-        .pointRadius(0.55)
-        .pointAltitude(0.0);
+        .pointRadius(0.58)
+        .pointAltitude(0.0)
+        .pointsMerge(false);
 
-      // Always-visible labels
+      // City labels (for verification)
       globe
         .labelsData(cities)
         .labelLat(d => d.lat)
         .labelLng(d => d.lng)
         .labelText(d => d.name)
         .labelSize(0.9)
-        .labelDotRadius(0.25)
+        .labelDotRadius(0.22)
         .labelColor(() => INK)
         .labelResolution(2);
 
@@ -102,15 +90,19 @@
 
       // Rotation
       globe.controls().autoRotate = true;
-      globe.controls().autoRotateSpeed = 0.35;
+      globe.controls().autoRotateSpeed = 0.30;
       globe.controls().enableZoom = false;
       globe.controls().enablePan = false;
 
-      // Lighting for light background
-      globe.scene().add(new THREE.AmbientLight(0xffffff, 1.4));
-      const key = new THREE.DirectionalLight(0xffffff, 0.9);
-      key.position.set(-60, 40, 50);
+      // Lighting for a clean “editorial” look
+      globe.scene().add(new THREE.AmbientLight(0xffffff, 1.35));
+      const key = new THREE.DirectionalLight(0xffffff, 0.95);
+      key.position.set(-60, 45, 55);
       globe.scene().add(key);
+
+      const rim = new THREE.DirectionalLight(0xffffff, 0.35);
+      rim.position.set(90, -20, 60);
+      globe.scene().add(rim);
 
       // Resize
       window.addEventListener("resize", () => {
